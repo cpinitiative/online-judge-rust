@@ -1,0 +1,29 @@
+[package]
+name = "online-judge-rust"
+version = "0.1.0"
+edition = "2021"
+
+# Starting in Rust 1.62 you can use `cargo add` to add dependencies 
+# to your project.
+#
+# If you're using an older Rust version,
+# download cargo-edit(https://github.com/killercup/cargo-edit#installation) 
+# to install the `add` subcommand.
+#
+# Running `cargo add DEPENDENCY_NAME` will
+# add the latest version of a dependency to the list,
+# and it will keep the alphabetic ordering for you.
+
+[dependencies]
+anyhow = "1.0.86"
+axum = "0.7.5"
+base64 = "0.22.1"
+lambda_http = "0.12.0"
+nix = { version = "0.29.0", features = ["signal"] }
+serde = { version = "1.0.203", features = ["std", "derive"] }
+shell-words = "1.1.0"
+tempdir = "0.3.7"
+
+tokio = { version = "1", features = ["macros"] }
+zip = "2.1.3"
+
