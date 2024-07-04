@@ -65,7 +65,15 @@ pub struct CompileResponse {
     pub executable: Option<Executable>,
 
     /// Process output of the compilation command.
-    pub process_output: ProcessOutput,
+    pub compile_output: ProcessOutput,
+}
+
+#[derive(Deserialize)]
+pub struct ExecuteRequest {
+    pub executable: Executable,
+    pub stdin: String,
+    /// Timeout in milliseconds. Defaults to 5000ms.
+    pub timeout: Option<u32>,
 }
 
 /// Payload for POST /compile-and-execute

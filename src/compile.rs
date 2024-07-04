@@ -1,20 +1,16 @@
 use std::{
     fs::{self, File},
     io::Write,
-    os::unix::process::ExitStatusExt,
-    process::Command,
-    str,
+    os::unix::process::ExitStatusExt, process::ExitStatus,
 };
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use axum::Json;
 use base64::{prelude::BASE64_STANDARD, Engine};
-use nix::sys::signal::Signal;
 use tempdir::TempDir;
 
 use crate::{
-    error::AppError,
-    types::{CompileRequest, CompileResponse, Executable, Language, ProcessOutput},
+    error::AppError, process::run_process, types::{CompileRequest, CompileResponse, Executable, Language}
 };
 
 pub async fn compile(
@@ -33,15 +29,10 @@ pub async fn compile(
         .into_string()
         .map_err(|_| anyhow!("failed to convert output_file_path into string"))?;
 
-    let mut compile_args = shell_words::split(&payload.compiler_options)?;
-    compile_args.extend(["-o".to_string(), output_file_path.clone(), "program.cpp".to_string()]);
-    let process = Command::new("g++")
-        .args(compile_args)
-        .current_dir(tmp_dir.as_ref())
-        .output()
-        .with_context(|| "Failed to start compilation process")?;
+    let command = format!("g++ -o {} {} program.cpp", output_file_path, payload.compiler_options);
+    let compile_output = run_process(&command, tmp_dir.path(), String::new(), 5000)?;
 
-    let executable = if process.status.success() {
+    let executable = if ExitStatus::from_raw(compile_output.exit_code).success() {
         let encoded_binary = BASE64_STANDARD.encode(fs::read(output_file_path)?);
         Some(match payload.language {
             Language::Cpp => Executable::Binary {
@@ -59,16 +50,7 @@ pub async fn compile(
 
     let response = CompileResponse {
         executable,
-        process_output: ProcessOutput {
-            exit_code: process.status.into_raw(),
-            exit_signal: process.status.signal().map(|signal| {
-                Signal::try_from(signal).map_or(format!("Unknown signal {signal}"), |signal| {
-                    signal.to_string()
-                })
-            }),
-            stdout: str::from_utf8(&process.stdout)?.to_string(),
-            stderr: str::from_utf8(&process.stderr)?.to_string(),
-        },
+        compile_output,
     };
 
     drop(source_file);
