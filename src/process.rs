@@ -1,15 +1,17 @@
 use std::io::Write;
 use std::path::Path;
 use std::process::Stdio;
+use std::thread;
+use std::time::Duration;
 use std::{os::unix::process::ExitStatusExt, process::Command, str};
 
 use anyhow::Context;
 use anyhow::Result;
 use nix::sys::signal::Signal;
 
-use crate::types::{Executable, ProcessOutput};
+use crate::types::{ExecuteOptions, ProcessOutput};
 
-pub fn run_process(command: &str, working_dir: &Path, stdin: String, timeout_ms: u32) -> Result<ProcessOutput> {
+pub fn run_process(command: &str, working_dir: &Path, options: ExecuteOptions) -> Result<ProcessOutput> {
     let mut process = Command::new("sh")
         .arg("-c")
         .arg(format!(
@@ -22,7 +24,7 @@ pub fn run_process(command: &str, working_dir: &Path, stdin: String, timeout_ms:
             } else {
                 "ulimit -c 0 && ulimit -s unlimited && /usr/bin/time -v /usr/bin/timeout"
             },
-            timeout_ms / 1000
+            options.timeout_ms / 1000
         ))
         .current_dir(working_dir)
         .stdin(Stdio::piped())
@@ -33,8 +35,9 @@ pub fn run_process(command: &str, working_dir: &Path, stdin: String, timeout_ms:
 
     let mut stdin_pipe = process.stdin.take().expect("Failed to open stdin");
     std::thread::spawn(move || {
-        // todo: we possibly do not want to crash here -- maybe child process closed stdin
-        stdin_pipe.write_all(stdin.as_bytes()).expect("Failed to write to stdin");
+        // Note: This may be due to a broken pipe if the program closes their stdin pipe.
+        // This thread panicing does not crash the main thread.
+        stdin_pipe.write_all(options.stdin.as_bytes()).expect("Failed to write to stdin");
     });
 
     let process = process.wait_with_output()?;

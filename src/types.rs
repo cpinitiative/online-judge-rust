@@ -71,9 +71,13 @@ pub struct CompileResponse {
 #[derive(Deserialize)]
 pub struct ExecuteRequest {
     pub executable: Executable,
+    pub options: ExecuteOptions,
+}
+
+#[derive(Deserialize)]
+pub struct ExecuteOptions {
     pub stdin: String,
-    /// Timeout in milliseconds. Defaults to 5000ms.
-    pub timeout: Option<u32>,
+    pub timeout_ms: u32,
 }
 
 /// Payload for POST /compile-and-execute
@@ -81,10 +85,15 @@ pub struct ExecuteRequest {
 /// Called when the user wants to compile and execute the given code with a single lambda call.
 /// Used by the USACO Guide IDE's "execute code" functionality.
 #[derive(Deserialize)]
-pub struct CompileAndExecuteRequest {}
+pub struct CompileAndExecuteRequest {
+    pub compile: CompileRequest,
+    pub execute: ExecuteOptions,
+}
 
 /// Response for POST /compile-and-execute
 #[derive(Serialize)]
 pub struct CompileAndExecuteResponse {
-    pub compile_result: String,
+    pub compile: ProcessOutput,
+    /// None if the program failed to compile.
+    pub execute: Option<ProcessOutput>,
 }

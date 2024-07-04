@@ -14,7 +14,7 @@ use crate::{
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
 
-pub async fn execute(Json(payload): Json<ExecuteRequest>) -> Result<Json<ProcessOutput>, AppError> {
+pub fn execute(payload: ExecuteRequest) -> anyhow::Result<ProcessOutput> {
     let tmp_dir = TempDir::new("execute")?;
 
     match payload.executable {
@@ -24,12 +24,11 @@ pub async fn execute(Json(payload): Json<ExecuteRequest>) -> Result<Json<Process
             executable_file.set_permissions(Permissions::from_mode(0o755))?;
             drop(executable_file);
 
-            Ok(Json(run_process(
+            run_process(
                 "./program",
                 tmp_dir.path(),
-                payload.stdin,
-                payload.timeout.unwrap_or(5000),
-            )?))
+                payload.options,
+            )
         }
         Executable::JavaClass { class_name, value } => unimplemented!(),
         Executable::Script {
@@ -37,4 +36,9 @@ pub async fn execute(Json(payload): Json<ExecuteRequest>) -> Result<Json<Process
             source_code,
         } => unimplemented!(),
     }
+}
+
+
+pub async fn execute_handler(Json(payload): Json<ExecuteRequest>) -> Result<Json<ProcessOutput>, AppError> {
+    Ok(Json(execute(payload)?))
 }

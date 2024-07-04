@@ -10,17 +10,17 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use tempdir::TempDir;
 
 use crate::{
-    error::AppError, process::run_process, types::{CompileRequest, CompileResponse, Executable, Language}
+    error::AppError, process::run_process, types::{CompileRequest, CompileResponse, Executable, ExecuteOptions, Language}
 };
 
-pub async fn compile(
-    Json(payload): Json<CompileRequest>,
-) -> Result<Json<CompileResponse>, AppError> {
+pub fn compile(
+    compile_request: CompileRequest,
+) -> anyhow::Result<CompileResponse> {
     let tmp_dir = TempDir::new("compile")?;
     let tmp_out_dir = TempDir::new("compile-out")?;
 
     let mut source_file = File::create(tmp_dir.path().join("program.cpp"))?;
-    source_file.write_all(payload.source_code.as_bytes())?;
+    source_file.write_all(compile_request.source_code.as_bytes())?;
 
     let output_file_path = tmp_out_dir
         .path()
@@ -29,12 +29,15 @@ pub async fn compile(
         .into_string()
         .map_err(|_| anyhow!("failed to convert output_file_path into string"))?;
 
-    let command = format!("g++ -o {} {} program.cpp", output_file_path, payload.compiler_options);
-    let compile_output = run_process(&command, tmp_dir.path(), String::new(), 5000)?;
+    let command = format!("g++ -o {} {} program.cpp", output_file_path, compile_request.compiler_options);
+    let compile_output = run_process(&command, tmp_dir.path(), ExecuteOptions{
+        stdin: String::new(),
+        timeout_ms: 5000,
+    })?;
 
     let executable = if ExitStatus::from_raw(compile_output.exit_code).success() {
         let encoded_binary = BASE64_STANDARD.encode(fs::read(output_file_path)?);
-        Some(match payload.language {
+        Some(match compile_request.language {
             Language::Cpp => Executable::Binary {
                 value: encoded_binary,
             },
@@ -56,5 +59,11 @@ pub async fn compile(
     drop(source_file);
     tmp_dir.close()?;
 
-    Ok(Json(response))
+    Ok(response)
+}
+
+pub async fn compile_handler(
+    Json(payload): Json<CompileRequest>,
+) -> Result<Json<CompileResponse>, AppError> {
+    Ok(compile(payload).map(|resp| Json(resp))?)
 }

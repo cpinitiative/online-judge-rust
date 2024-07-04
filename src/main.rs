@@ -11,8 +11,8 @@ mod types;
 mod error;
 mod process;
 
-use compile::compile;
-use execute::execute;
+use compile::compile_handler;
+use execute::execute_handler;
 use compile_and_execute::compile_and_execute;
 
 async fn index_page() -> &'static str {
@@ -25,8 +25,8 @@ async fn main() -> Result<(), Error> {
 
     let app = Router::new()
         .route("/", get(index_page))
-        .route("/compile", post(compile))
-        .route("/execute", post(execute))
+        .route("/compile", post(compile_handler))
+        .route("/execute", post(execute_handler))
         .route("/compile-and-execute", post(compile_and_execute));
 
     run(app).await
