@@ -10,6 +10,22 @@ pub enum Language {
     Py11,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Executable {
+    #[serde(rename = "binary")]
+    Binary { value: String },
+
+    #[serde(rename = "java_class")]
+    JavaClass { class_name: String, value: String },
+
+    #[serde(rename = "script")]
+    Script {
+        language: Language,
+        source_code: String,
+    },
+}
+
 #[derive(Serialize)]
 pub struct ProcessOutput {
     pub stdout: String,
@@ -20,7 +36,6 @@ pub struct ProcessOutput {
     pub exit_code: i32,
 
     pub exit_signal: Option<String>,
-
     // todo: I'm pretty sure this only happens if the user passes wrong compilation flags or something
     // pub process_error: String,
 
@@ -38,7 +53,6 @@ pub struct ProcessOutput {
 /// extracting the ZIP file will run the compiled binary.
 #[derive(Deserialize)]
 pub struct CompileRequest {
-    pub filename: String,
     pub source_code: String,
     pub compiler_options: String,
     pub language: Language,
@@ -47,12 +61,11 @@ pub struct CompileRequest {
 /// Response for POST /compile
 #[derive(Serialize)]
 pub struct CompileResponse {
-    /// The base64-encoded ZIP file. This is None if the compilation did not succeed.
-    pub output: Option<String>,
+    /// None if the compilation did not succeed.
+    pub executable: Option<Executable>,
 
-    /// Process output of the compilation command, if one is run. This will be None for languages
-    /// like Python.
-    pub process_output: Option<ProcessOutput>,
+    /// Process output of the compilation command.
+    pub process_output: ProcessOutput,
 }
 
 /// Payload for POST /compile-and-execute
