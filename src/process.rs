@@ -1,8 +1,6 @@
 use std::io::Write;
 use std::path::Path;
 use std::process::Stdio;
-use std::thread;
-use std::time::Duration;
 use std::{os::unix::process::ExitStatusExt, process::Command, str};
 
 use anyhow::Context;
