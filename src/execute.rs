@@ -4,17 +4,23 @@ use std::{
     os::unix::fs::PermissionsExt,
 };
 
+use anyhow::Result;
 use axum::Json;
+use serde::Deserialize;
 use tempdir::TempDir;
 
 use crate::{
-    error::AppError,
-    process::run_process,
-    types::{Executable, ExecuteRequest, ProcessOutput},
+    error::AppError, run_command::{run_command, CommandOptions, CommandOutput}, types::Executable
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
 
-pub fn execute(payload: ExecuteRequest) -> anyhow::Result<ProcessOutput> {
+#[derive(Deserialize)]
+pub struct ExecuteRequest {
+    pub executable: Executable,
+    pub options: CommandOptions,
+}
+
+pub fn execute(payload: ExecuteRequest) -> Result<CommandOutput> {
     let tmp_dir = TempDir::new("execute")?;
 
     match payload.executable {
@@ -24,11 +30,7 @@ pub fn execute(payload: ExecuteRequest) -> anyhow::Result<ProcessOutput> {
             executable_file.set_permissions(Permissions::from_mode(0o755))?;
             drop(executable_file);
 
-            run_process(
-                "./program",
-                tmp_dir.path(),
-                payload.options,
-            )
+            run_command("./program", tmp_dir.path(), payload.options)
         }
         Executable::JavaClass { class_name, value } => unimplemented!(),
         Executable::Script {
@@ -38,7 +40,6 @@ pub fn execute(payload: ExecuteRequest) -> anyhow::Result<ProcessOutput> {
     }
 }
 
-
-pub async fn execute_handler(Json(payload): Json<ExecuteRequest>) -> Result<Json<ProcessOutput>, AppError> {
+pub async fn execute_handler(Json(payload): Json<ExecuteRequest>) -> Result<Json<CommandOutput>, AppError> {
     Ok(Json(execute(payload)?))
 }

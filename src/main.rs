@@ -1,19 +1,18 @@
 use axum::{
-    routing::{get, post},
-    Router,
+    routing::{get, post}, Json, Router
 };
 use lambda_http::{run, tracing, Error};
 
 mod compile;
-mod compile_and_execute;
 mod execute;
+mod compile_and_execute;
 mod types;
 mod error;
-mod process;
+mod run_command;
 
 use compile::compile_handler;
 use execute::execute_handler;
-use compile_and_execute::compile_and_execute;
+use compile_and_execute::compile_and_execute_handler;
 
 async fn index_page() -> &'static str {
     "Serverless Online Judge (Rust)"
@@ -27,7 +26,7 @@ async fn main() -> Result<(), Error> {
         .route("/", get(index_page))
         .route("/compile", post(compile_handler))
         .route("/execute", post(execute_handler))
-        .route("/compile-and-execute", post(compile_and_execute));
+        .route("/compile-and-execute", post(compile_and_execute_handler));
 
     run(app).await
 }

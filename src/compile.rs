@@ -1,21 +1,37 @@
 use std::{
     fs::{self, File},
     io::Write,
-    os::unix::process::ExitStatusExt, process::ExitStatus,
+    os::unix::process::ExitStatusExt,
+    process::ExitStatus,
 };
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use axum::Json;
 use base64::{prelude::BASE64_STANDARD, Engine};
+use serde::{Deserialize, Serialize};
 use tempdir::TempDir;
 
 use crate::{
-    error::AppError, process::run_process, types::{CompileRequest, CompileResponse, Executable, ExecuteOptions, Language}
+    error::AppError, run_command::{run_command, CommandOptions, CommandOutput}, types::{Executable, Language}
 };
 
-pub fn compile(
-    compile_request: CompileRequest,
-) -> anyhow::Result<CompileResponse> {
+#[derive(Deserialize)]
+pub struct CompileRequest {
+    pub source_code: String,
+    pub compiler_options: String,
+    pub language: Language,
+}
+
+#[derive(Serialize)]
+pub struct CompileResponse {
+    /// None if the compilation did not succeed.
+    pub executable: Option<Executable>,
+
+    /// Process output of the compilation command.
+    pub compile_output: CommandOutput,
+}
+
+pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
     let tmp_dir = TempDir::new("compile")?;
     let tmp_out_dir = TempDir::new("compile-out")?;
 
@@ -29,11 +45,18 @@ pub fn compile(
         .into_string()
         .map_err(|_| anyhow!("failed to convert output_file_path into string"))?;
 
-    let command = format!("g++ -o {} {} program.cpp", output_file_path, compile_request.compiler_options);
-    let compile_output = run_process(&command, tmp_dir.path(), ExecuteOptions{
-        stdin: String::new(),
-        timeout_ms: 5000,
-    })?;
+    let command = format!(
+        "g++ -o {} {} program.cpp",
+        output_file_path, compile_request.compiler_options
+    );
+    let compile_output = run_command(
+        &command,
+        tmp_dir.path(),
+        CommandOptions {
+            stdin: String::new(),
+            timeout_ms: 5000,
+        },
+    )?;
 
     let executable = if ExitStatus::from_raw(compile_output.exit_code).success() {
         let encoded_binary = BASE64_STANDARD.encode(fs::read(output_file_path)?);
@@ -65,5 +88,5 @@ pub fn compile(
 pub async fn compile_handler(
     Json(payload): Json<CompileRequest>,
 ) -> Result<Json<CompileResponse>, AppError> {
-    Ok(compile(payload).map(|resp| Json(resp))?)
+    Ok(Json(compile(payload)?))
 }

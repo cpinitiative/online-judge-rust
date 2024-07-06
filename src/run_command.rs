@@ -1,3 +1,5 @@
+//! Provides a function to run a command and return the output.
+
 use std::io::Write;
 use std::path::Path;
 use std::process::Stdio;
@@ -6,10 +8,33 @@ use std::{os::unix::process::ExitStatusExt, process::Command, str};
 use anyhow::Context;
 use anyhow::Result;
 use nix::sys::signal::Signal;
+use serde::{Deserialize, Serialize};
 
-use crate::types::{ExecuteOptions, ProcessOutput};
+#[derive(Deserialize)]
+pub struct CommandOptions {
+    pub stdin: String,
+    pub timeout_ms: u32,
+}
 
-pub fn run_process(command: &str, working_dir: &Path, options: ExecuteOptions) -> Result<ProcessOutput> {
+#[derive(Serialize)]
+pub struct CommandOutput {
+    pub stdout: String,
+    pub stderr: String,
+
+    /// The underlying raw wait status. Note that this is different from an exit status.
+    pub exit_code: i32,
+
+    pub exit_signal: Option<String>,
+
+    // /**
+    //  * When executing, if `fileIOName` is given, this is
+    //  * set to whatever is written in `[fileIOName].out`
+    //  * or null if there's no such file.
+    //  */
+    // pub file_output: Option<String>,
+}
+
+pub fn run_command(command: &str, working_dir: &Path, options: CommandOptions) -> Result<CommandOutput> {
     let mut process = Command::new("sh")
         .arg("-c")
         .arg(format!(
@@ -40,7 +65,7 @@ pub fn run_process(command: &str, working_dir: &Path, options: ExecuteOptions) -
 
     let process = process.wait_with_output()?;
 
-    Ok(ProcessOutput {
+    Ok(CommandOutput {
         exit_code: process.status.into_raw(),
         exit_signal: process.status.signal().map(|signal| {
             Signal::try_from(signal).map_or(format!("Unknown signal {signal}"), |signal| {
