@@ -46,7 +46,7 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
         .map_err(|_| anyhow!("failed to convert output_file_path into string"))?;
 
     let command = format!(
-        "g++ -o {} {} program.cpp",
+        "g++ -I/precompiled-headers -o {} {} program.cpp",
         output_file_path, compile_request.compiler_options
     );
     let compile_output = run_command(
