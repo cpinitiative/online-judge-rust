@@ -43,3 +43,16 @@ Future updates: Maybe https://awscli.amazonaws.com/v2/documentation/api/latest/r
 
 Todo:
 - precompile `bits/stdc++.h`
+
+---
+
+
+```js
+for (let i = 0; i < 100; i++) fetch("https://v3nuswv3poqzw6giv37wmrt6su0krxvt.lambda-url.us-east-1.on.aws/compile", {
+     method: "POST", 
+    headers: {"Content-Type": "application/json" }, body: JSON.stringify({
+    "source_code": "cat /proc/cpuinfo && sleep 1",
+    "compiler_options": "-O2 -std=c++17",
+    "language": "cpp"
+}) }).then(x => x.json()).then(x => console.log(x.compile_output.stdout.match(/cpu MHz\t\t: (.*)/)[1]))
+```

@@ -1,3 +1,5 @@
+use std::fs;
+
 use axum::{
     routing::{get, post}, Json, Router
 };
@@ -21,6 +23,8 @@ async fn index_page() -> &'static str {
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     tracing::init_default_subscriber();
+
+    fs::create_dir_all("/tmp/precompiled-headers/bits/stdc++.h.gch")?;
 
     let app = Router::new()
         .route("/", get(index_page))
