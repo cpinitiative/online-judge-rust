@@ -53,7 +53,7 @@ pub struct CompileResponse {
 /// precompiling headers for the first two requests, we reduce the chance that one user repeatedly
 /// gets a slow experience.
 fn precompile_headers() -> Result<()> {
-    const PRECOMPILE_VERSIONS: &'static [&'static str] = &["17", "23"];
+    const PRECOMPILE_VERSIONS: &'static [&'static str] = &["23"];
     static mut VERSION_IDX: usize = 0;
 
     // Note: this must be single-threaded due to the use of static mut
