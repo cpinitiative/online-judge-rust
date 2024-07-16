@@ -626,6 +626,7 @@ dependencies = [
  "base64",
  "lambda_http",
  "nix",
+ "regex",
  "serde",
  "shell-words",
  "tempdir",
