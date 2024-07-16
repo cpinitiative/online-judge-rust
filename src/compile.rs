@@ -97,7 +97,7 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
     let program_filename: PathBuf = match compile_request.language {
         Language::Cpp => "program.cpp".into(),
         Language::Java21 => "Main.java".into(),
-        Language::Py11 => return Err(anyhow!("Cannot compile Python")),
+        Language::Py12 => "program.py".into(),
     };
 
     let mut source_file = File::create(tmp_dir.path().join(&program_filename))?;
@@ -136,7 +136,21 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
                 .to_str()
                 .unwrap(),
         ),
-        Language::Py11 => unreachable!(),
+        Language::Py12 => format!(
+            "cp {} {}",
+            tmp_dir
+                .path()
+                .join(&program_filename)
+                .as_os_str()
+                .to_str()
+                .unwrap(),
+            tmp_out_dir
+                .path()
+                .join(&program_filename)
+                .as_os_str()
+                .to_str()
+                .unwrap(),
+        ),
     };
     let compile_output = run_command(
         &command,
@@ -150,10 +164,17 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
     let executable = if ExitStatus::from_raw(compile_output.exit_code).success() {
         Some(match compile_request.language {
             Language::Cpp => Executable::Binary {
-                value: BASE64_STANDARD.encode(fs::read(tmp_out_dir.path().join(program_filename.with_extension("")))?),
+                value: BASE64_STANDARD.encode(fs::read(
+                    tmp_out_dir.path().join(program_filename.with_extension("")),
+                )?),
             },
             Language::Java21 => Executable::JavaClass {
-                class_name: program_filename.file_stem().unwrap().to_str().unwrap().to_owned(),
+                class_name: program_filename
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned(),
                 value: BASE64_STANDARD.encode(fs::read(
                     tmp_out_dir
                         .path()
@@ -161,7 +182,11 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
                         .with_extension("class"),
                 )?),
             },
-            Language::Py11 => unreachable!(),
+            Language::Py12 => Executable::Script {
+                language: Language::Py12,
+                source_code: BASE64_STANDARD
+                    .encode(fs::read(tmp_out_dir.path().join(program_filename))?),
+            },
         })
     } else {
         Option::None

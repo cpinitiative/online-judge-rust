@@ -4,7 +4,7 @@ use std::{
     os::unix::fs::PermissionsExt,
 };
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use axum::Json;
 use serde::Deserialize;
 use tempdir::TempDir;
@@ -12,7 +12,7 @@ use tempdir::TempDir;
 use crate::{
     error::AppError,
     run_command::{run_command, CommandOptions, CommandOutput},
-    types::Executable,
+    types::{Executable, Language},
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
 
@@ -53,7 +53,18 @@ pub fn execute(payload: ExecuteRequest) -> Result<CommandOutput> {
         Executable::Script {
             language,
             source_code,
-        } => unimplemented!(),
+        } => {
+            if language != Language::Py12 {
+                return Err(anyhow!("Unknown script language {:#?}", language));
+            }
+
+            let mut executable_file = File::create(tmp_dir.path().join("program.py"))?;
+            executable_file.write_all(BASE64_STANDARD.decode(source_code)?.as_ref())?;
+            executable_file.set_permissions(Permissions::from_mode(0o755))?;
+            drop(executable_file);
+
+            run_command("python3.12 program.py", tmp_dir.path(), payload.options)
+        }
     }
 }
 

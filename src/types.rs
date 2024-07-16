@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub enum Language {
     #[serde(rename = "cpp")]
     Cpp,
     #[serde(rename = "java21")]
     Java21,
-    #[serde(rename = "py11")]
-    Py11,
+    #[serde(rename = "py12")]
+    Py12,
 }
 
 #[derive(Serialize, Deserialize)]
