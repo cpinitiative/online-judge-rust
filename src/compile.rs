@@ -40,34 +40,29 @@ pub struct CompileResponse {
 /// headers: https://gcc.gnu.org/onlinedocs/gcc/Precompiled-Headers.html
 ///
 /// However, precompiling headers is slow (~6s for C++23), and /tmp storage space is expensive, so
-/// we only precompile bits/stdc++.h for some compiler options.
+/// we only precompile bits/stdc++.h for the default C++ compiler option.
 ///
 /// I believe flags like -Wall are ignored, but flags like -std, -O2, and -fsanitize=address must
 /// match the flags used to precompile the header.
 ///
 /// We don't do this precompilation in the dockerfile because lambda disk read speeds are abysmally
 /// slow (~6 MB/s empirically), and the precompiled headers are quite large.
-///
-/// We precompile headers even if the request doesn't need it. Otherwise if nobody uses C++23 for
-/// example, one poor user may end up with long compile times for every lambda instance. By
-/// precompiling headers for the first two requests, we reduce the chance that one user repeatedly
-/// gets a slow experience.
-fn precompile_headers() -> Result<()> {
-    const PRECOMPILE_VERSIONS: &'static [&'static str] = &["23"];
-    static mut VERSION_IDX: usize = 0;
+fn precompile_headers(compile_request: &CompileRequest) -> Result<()> {
+    let cpp_version = "23";
 
-    // Note: this must be single-threaded due to the use of static mut
-    if unsafe { VERSION_IDX } >= PRECOMPILE_VERSIONS.len() {
+    if compile_request.language != Language::Cpp
+        || !compile_request.compiler_options.contains("-O2")
+        || !compile_request
+            .compiler_options
+            .contains(&format!("--std=c++{cpp_version}"))
+    {
         return Ok(());
     }
-    let cpp_version = PRECOMPILE_VERSIONS[unsafe { VERSION_IDX }];
-    unsafe { VERSION_IDX += 1 };
 
     let precompiled_header_path =
         format!("/tmp/precompiled-headers/bits/stdc++.h.gch/{cpp_version}");
 
     if Path::new(&precompiled_header_path).exists() {
-        // Shouldn't happen
         return Ok(());
     }
 
@@ -104,7 +99,7 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
     source_file.write_all(compile_request.source_code.as_bytes())?;
     drop(source_file);
 
-    if let Err(err) = precompile_headers() {
+    if let Err(err) = precompile_headers(compile_request) {
         println!("Warning: Failed to precompile headers: {err}");
     }
 
