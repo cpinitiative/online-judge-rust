@@ -1,3 +1,11 @@
+To run normally:
+
+```
+cargo lambda watch
+``` 
+
+And POST `http://localhost:9000/compile-and-execute`.
+
 To test base docker image (useful for determining what packages need to be installed)
 
 ```
@@ -35,24 +43,40 @@ To deploy lambda for the first time:
 - Create lambda through AWS console
 - Add a function URL with CORS
 - Set timeout to 15 seconds
-- Set memory to 1769 MB (1 vCPU)
+- Set memory to 2048 MB (slightly over 1 vCPU)
 
-Future updates: Maybe https://awscli.amazonaws.com/v2/documentation/api/latest/reference/lambda/update-function-code.html ?
-
----
-
-Todo:
-- precompile `bits/stdc++.h`
 
 ---
 
+file stuff: relaxed permissions
+
+---
+
+Todo: Note that there are actually two CPUs -- AMD and Intel -- so timings are not consistent. With this, I saw 1.93 and also 1.30:
+
+```
+double x; cin >> x; int y = x; for (int i = 0; i < y; i++) x += sqrt(x); cout << x << endl;
+```
+
+x = 200000000 input.
 
 ```js
-for (let i = 0; i < 100; i++) fetch("https://v3nuswv3poqzw6giv37wmrt6su0krxvt.lambda-url.us-east-1.on.aws/compile", {
+for (let i = 0; i < 100; i++) fetch("https://v3nuswv3poqzw6giv37wmrt6su0krxvt.lambda-url.us-east-1.on.aws/compile-and-execute", {
      method: "POST", 
-    headers: {"Content-Type": "application/json" }, body: JSON.stringify({
-    "source_code": "cat /proc/cpuinfo && sleep 1",
+    headers: {"Content-Type": "application/json" }, body: JSON.stringify({compile:{
+    "source_code": `// Source: https://usaco.guide/general/io
+
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+double x; cin >> x; int y = x; for (int i = 0; i < y; i++) x += sqrt(x); cout << x << endl;;
+}
+
+`,
     "compiler_options": "-O2 -std=c++17",
     "language": "cpp"
-}) }).then(x => x.json()).then(x => console.log(x.compile_output.stdout.match(/cpu MHz\t\t: (.*)/)[1]))
+},execute:{stdin:"200000000", timeout_ms:5000}}) }).then(x => x.json()).then(x => console.log(x.execute.stderr.match(/wall clock.*/)[0]))
 ```
+
+Should benchmark this to determine how off the timings are / whether we can just add a multiplicative factor to it.

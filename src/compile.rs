@@ -2,7 +2,7 @@ use std::{
     fs::{self, File},
     io::Write,
     os::unix::process::ExitStatusExt,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
 
@@ -67,9 +67,11 @@ fn precompile_headers() -> Result<()> {
         format!("/tmp/precompiled-headers/bits/stdc++.h.gch/{cpp_version}");
 
     if Path::new(&precompiled_header_path).exists() {
+        // Shouldn't happen
         return Ok(());
     }
 
+    // todo: disable in local development
     if !Command::new("g++")
         .arg("-o")
         .arg(precompiled_header_path)
@@ -92,24 +94,50 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
     let tmp_dir = TempDir::new("compile")?;
     let tmp_out_dir = TempDir::new("compile-out")?;
 
-    let mut source_file = File::create(tmp_dir.path().join("program.cpp"))?;
-    source_file.write_all(compile_request.source_code.as_bytes())?;
+    let program_filename: PathBuf = match compile_request.language {
+        Language::Cpp => "program.cpp".into(),
+        Language::Java21 => "Main.java".into(),
+        Language::Py11 => return Err(anyhow!("Cannot compile Python")),
+    };
 
-    let output_file_path = tmp_out_dir
-        .path()
-        .join("program")
-        .into_os_string()
-        .into_string()
-        .map_err(|_| anyhow!("failed to convert output_file_path into string"))?;
+    let mut source_file = File::create(tmp_dir.path().join(&program_filename))?;
+    source_file.write_all(compile_request.source_code.as_bytes())?;
+    drop(source_file);
 
     if let Err(err) = precompile_headers() {
         println!("Warning: Failed to precompile headers: {err}");
     }
 
-    let command = format!(
-        "g++ -I/tmp/precompiled-headers -o {} {} program.cpp",
-        output_file_path, compile_request.compiler_options
-    );
+    let command = match compile_request.language {
+        Language::Cpp => format!(
+            "g++ -I/tmp/precompiled-headers -o {} {} {}",
+            tmp_out_dir
+                .path()
+                .join(program_filename.clone().with_extension(""))
+                .as_os_str()
+                .to_str()
+                .unwrap(),
+            compile_request.compiler_options,
+            tmp_dir
+                .path()
+                .join(&program_filename)
+                .as_os_str()
+                .to_str()
+                .unwrap(),
+        ),
+        Language::Java21 => format!(
+            "javac -d {} {} {}",
+            tmp_out_dir.path().as_os_str().to_str().unwrap(),
+            compile_request.compiler_options,
+            tmp_dir
+                .path()
+                .join(&program_filename)
+                .as_os_str()
+                .to_str()
+                .unwrap(),
+        ),
+        Language::Py11 => unreachable!(),
+    };
     let compile_output = run_command(
         &command,
         tmp_dir.path(),
@@ -120,14 +148,18 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
     )?;
 
     let executable = if ExitStatus::from_raw(compile_output.exit_code).success() {
-        let encoded_binary = BASE64_STANDARD.encode(fs::read(output_file_path)?);
         Some(match compile_request.language {
             Language::Cpp => Executable::Binary {
-                value: encoded_binary,
+                value: BASE64_STANDARD.encode(fs::read(tmp_out_dir.path().join(program_filename.with_extension("")))?),
             },
             Language::Java21 => Executable::JavaClass {
-                class_name: "Main".to_string(),
-                value: encoded_binary,
+                class_name: program_filename.file_stem().unwrap().to_str().unwrap().to_owned(),
+                value: BASE64_STANDARD.encode(fs::read(
+                    tmp_out_dir
+                        .path()
+                        .join(program_filename)
+                        .with_extension("class"),
+                )?),
             },
             Language::Py11 => unreachable!(),
         })
@@ -140,7 +172,6 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
         compile_output,
     };
 
-    drop(source_file);
     tmp_dir.close()?;
 
     Ok(response)
