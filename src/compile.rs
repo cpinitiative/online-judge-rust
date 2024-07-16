@@ -118,23 +118,13 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
                 .to_str()
                 .unwrap(),
             compile_request.compiler_options,
-            tmp_dir
-                .path()
-                .join(&program_filename)
-                .as_os_str()
-                .to_str()
-                .unwrap(),
+            program_filename.as_os_str().to_str().unwrap(),
         ),
         Language::Java21 => format!(
             "javac -d {} {} {}",
             tmp_out_dir.path().as_os_str().to_str().unwrap(),
             compile_request.compiler_options,
-            tmp_dir
-                .path()
-                .join(&program_filename)
-                .as_os_str()
-                .to_str()
-                .unwrap(),
+            program_filename.as_os_str().to_str().unwrap(),
         ),
         Language::Py12 => format!(
             "cp {} {}",
@@ -157,7 +147,7 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
         tmp_dir.path(),
         CommandOptions {
             stdin: String::new(),
-            timeout_ms: 10000,
+            timeout_ms: 20000,
         },
     )?;
 
