@@ -55,7 +55,7 @@ fn precompile_headers(compile_request: &CompileRequest) -> Result<()> {
         || !compile_request.compiler_options.contains("-O2")
         || !compile_request
             .compiler_options
-            .contains(&format!("--std=c++{cpp_version}"))
+            .contains(&format!("-std=c++{cpp_version}"))
         || !compile_request
             .source_code
             .contains("#include <bits/stdc++.h>")
