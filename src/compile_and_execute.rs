@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     compile::{compile, CompileRequest},
     error::AppError,
-    execute::{execute, ExecuteRequest},
-    run_command::{CommandOptions, CommandOutput},
+    execute::{execute, ExecuteOptions, ExecuteRequest, ExecuteResponse},
+    run_command::CommandOutput,
 };
 
 /// Payload for POST /compile-and-execute
@@ -15,7 +15,7 @@ use crate::{
 #[derive(Deserialize)]
 pub struct CompileAndExecuteRequest {
     pub compile: CompileRequest,
-    pub execute: CommandOptions,
+    pub execute: ExecuteOptions,
 }
 
 /// Response for POST /compile-and-execute
@@ -23,7 +23,7 @@ pub struct CompileAndExecuteRequest {
 pub struct CompileAndExecuteResponse {
     pub compile: CommandOutput,
     /// None if the program failed to compile.
-    pub execute: Option<CommandOutput>,
+    pub execute: Option<ExecuteResponse>,
 }
 
 pub async fn compile_and_execute_handler(

@@ -26,14 +26,7 @@ pub struct CommandOutput {
 
     /// The underlying raw wait status. Note that this is different from an exit status.
     pub exit_code: i32,
-
     pub exit_signal: Option<String>,
-    // /**
-    //  * When executing, if `fileIOName` is given, this is
-    //  * set to whatever is written in `[fileIOName].out`
-    //  * or null if there's no such file.
-    //  */
-    // pub file_output: Option<String>,
 }
 
 struct TimingOutput {
