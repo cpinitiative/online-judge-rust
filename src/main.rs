@@ -1,7 +1,7 @@
 use std::fs;
 
 use axum::{
-    routing::{get, post}, Json, Router
+    routing::{get, post}, Router
 };
 use lambda_http::{run, tracing, Error};
 

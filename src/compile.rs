@@ -9,6 +9,7 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use axum::Json;
 use base64::{prelude::BASE64_STANDARD, Engine};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tempdir::TempDir;
 
@@ -55,6 +56,9 @@ fn precompile_headers(compile_request: &CompileRequest) -> Result<()> {
         || !compile_request
             .compiler_options
             .contains(&format!("--std=c++{cpp_version}"))
+        || !compile_request
+            .source_code
+            .contains("#include <bits/stdc++.h>")
     {
         return Ok(());
     }
@@ -91,7 +95,14 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
 
     let program_filename: PathBuf = match compile_request.language {
         Language::Cpp => "program.cpp".into(),
-        Language::Java21 => "Main.java".into(),
+        Language::Java21 => {
+            let re = Regex::new(r"public\s+class\s+(\w+)").unwrap();
+            if let Some(captures) = re.captures(&compile_request.source_code) {
+                format!("{}.java", &captures[1]).into()
+            } else {
+                "Main.java".into() // fallback, something went wrong
+            }
+        }
         Language::Py12 => "program.py".into(),
     };
 
@@ -99,7 +110,7 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
     source_file.write_all(compile_request.source_code.as_bytes())?;
     drop(source_file);
 
-    if let Err(err) = precompile_headers(compile_request) {
+    if let Err(err) = precompile_headers(&compile_request) {
         println!("Warning: Failed to precompile headers: {err}");
     }
 
