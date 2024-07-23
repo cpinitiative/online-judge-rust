@@ -24,6 +24,8 @@ docker run -it --platform linux/amd64 -p 9000:8080 --entrypoint /bin/bash oj-rus
 
 # to send command:
 curl "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{}'
+
+# to get format for ^: https://github.com/brefphp/local-api-gateway/blob/main/src/apiGateway.ts
 ```
 
 To upload to ECR
@@ -86,11 +88,6 @@ Should benchmark this to determine how off the timings are / whether we can just
 misc todos
 
 ```
-// timeout: warning: disabling core dumps failed: Operation not permitted
-// Command exited with non-zero status 137
-// UGH
-
-// also, internal server error when output too large
 
 // want smth like
 /*

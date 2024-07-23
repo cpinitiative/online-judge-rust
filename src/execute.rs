@@ -1,19 +1,17 @@
 use std::{
-    fs::{self, File},
-    io::Write,
-    path::Path,
-    process::Command,
+    cmp::min, fs::{self, File}, io::Write, os::unix::fs::PermissionsExt, path::Path, process::Command
 };
 
 use anyhow::{anyhow, Result};
 use axum::Json;
+use regex::Replacer;
 use serde::{Deserialize, Serialize};
 use tempfile::{tempdir, NamedTempFile};
 
 use crate::{
     error::AppError,
     run_command::{run_command, CommandOptions},
-    types::{Executable},
+    types::Executable,
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
 
@@ -82,6 +80,45 @@ fn extract_zip(dir: &Path, base64_zip: &str) -> Result<()> {
     }
 }
 
+fn truncate_response(mut response: ExecuteResponse) -> ExecuteResponse {
+    const MAX_LEN: usize = 5_800_000;
+
+    let mut stdout = response.stdout;
+    let mut stderr = response.stderr;
+    let mut file_output = response.file_output;
+
+    let mut file_output_len = 0;
+
+    if file_output.is_some() {
+        let mut actual_file_output = file_output.unwrap();
+        file_output_len = min(MAX_LEN / 3, actual_file_output.len());
+        actual_file_output.truncate(file_output_len);
+        actual_file_output += "\n[Truncated]";
+        file_output = Some(actual_file_output);
+    }
+
+    let stderr_len = min((MAX_LEN - file_output_len) / 2, stderr.len());
+    let stdout_len = min(MAX_LEN - stderr_len - file_output_len, stdout.len());
+
+    if stderr.len() > stderr_len {
+        // Note: This could panic if printing multi-byte characters!
+        stderr.truncate(stderr_len);
+        stderr += "\n[Truncated]";
+    }
+
+    if stdout.len() > stdout_len {
+        // Note: This could panic if printing multi-byte characters!
+        stdout.truncate(stdout_len);
+        stdout += "\n[Truncated]";
+    }
+
+    response.stdout = stdout;
+    response.stderr = stderr;
+    response.file_output = file_output;
+
+    response
+}
+
 pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
     let tmp_dir = tempdir()?;
 
@@ -102,7 +139,21 @@ pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
         timeout_ms: payload.options.timeout_ms,
     };
 
-    let command_output = run_command(&payload.executable.run_command, tmp_dir.path(), command_options)?;
+    // Run the command in a file to get messages like
+    // ./run: line 1:   308 Segmentation fault      ./prog
+    // I don't know why we don't get these messages normally.
+    let mut run_file = File::create(tmp_dir.path().join("run"))?;
+    run_file.write_all(payload.executable.run_command.as_bytes())?;
+    let mut run_file_permissions = run_file.metadata()?.permissions();
+    run_file_permissions.set_mode(0o755);
+    run_file.set_permissions(run_file_permissions)?;
+    drop(run_file);
+
+    let command_output = run_command(
+        "./run",
+        tmp_dir.path(),
+        command_options,
+    )?;
 
     let verdict = match command_output.exit_code {
         124 => Verdict::TimeLimitExceeded,
@@ -121,7 +172,7 @@ pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
         None
     };
 
-    Ok(ExecuteResponse {
+    Ok(truncate_response(ExecuteResponse {
         stdout: command_output.stdout,
         file_output,
         stderr: command_output.stderr,
@@ -130,7 +181,7 @@ pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
         exit_code: command_output.exit_code,
         exit_signal: command_output.exit_signal,
         verdict,
-    })
+    }))
 }
 
 pub async fn execute_handler(
