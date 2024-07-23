@@ -6,7 +6,7 @@ RUN dnf install -y gcc-c++
 RUN dnf install -y libasan libubsan
 
 RUN dnf install -y java-21-amazon-corretto-devel
-RUN dnf install -y time
+RUN dnf install -y time tar
 
 COPY target/lambda/online-judge-rust/bootstrap ${LAMBDA_RUNTIME_DIR}/bootstrap
 

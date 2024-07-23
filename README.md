@@ -42,8 +42,8 @@ docker push 417600709600.dkr.ecr.us-east-1.amazonaws.com/online-judge-rust:lates
 To deploy lambda for the first time:
 - Create lambda through AWS console
 - Add a function URL with CORS
-- Set timeout to 15 seconds
-- Set memory to 2048 MB (slightly over 1 vCPU)
+- Set timeout to 30 seconds
+- Set memory to 1769 MB (1 vCPU)
 
 
 ---
