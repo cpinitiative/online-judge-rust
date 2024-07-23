@@ -1,7 +1,7 @@
 use std::{
     fs::{self, File},
-    io::Write,
-    os::unix::process::ExitStatusExt,
+    io::{Write},
+    os::unix::{process::ExitStatusExt},
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -11,7 +11,7 @@ use axum::Json;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use tempdir::TempDir;
+use tempfile::tempdir;
 
 use crate::{
     error::AppError,
@@ -90,8 +90,8 @@ fn precompile_headers(compile_request: &CompileRequest) -> Result<()> {
 }
 
 pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
-    let tmp_dir = TempDir::new("compile")?;
-    let tmp_out_dir = TempDir::new("compile-out")?;
+    let tmp_dir = tempdir()?;
+    let tmp_out_dir = tempdir()?;
 
     let program_filename: PathBuf = match compile_request.language {
         Language::Cpp => "program.cpp".into(),
@@ -157,39 +157,35 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
         },
     )?;
 
-    let executable = if ExitStatus::from_raw(compile_output.exit_code).success() {
-        Some(match compile_request.language {
-            Language::Cpp => Executable::Binary {
-                value: BASE64_STANDARD.encode(fs::read(
-                    tmp_out_dir.path().join(program_filename.with_extension("")),
-                )?),
-            },
-            Language::Java21 => Executable::JavaClass {
-                class_name: program_filename
-                    .file_stem()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_owned(),
-                value: BASE64_STANDARD.encode(fs::read(
-                    tmp_out_dir
-                        .path()
-                        .join(program_filename)
-                        .with_extension("class"),
-                )?),
-            },
-            Language::Py12 => Executable::Script {
-                language: Language::Py12,
-                source_code: BASE64_STANDARD
-                    .encode(fs::read(tmp_out_dir.path().join(program_filename))?),
-            },
-        })
+    let run_command = match compile_request.language {
+        Language::Cpp => "./program".to_owned(),
+        Language::Java21 => format!(
+            "java {}",
+            program_filename.file_stem().unwrap().to_str().unwrap()
+        ),
+        Language::Py12 => "python3.12 program.py".to_owned(),
+    };
+
+    let base64_files = if ExitStatus::from_raw(compile_output.exit_code).success() {
+        if !Command::new("sh")
+            .arg("-c")
+            .arg("tar czf executable.tar.gz *")
+            .current_dir(tmp_out_dir.path())
+            .status()?
+            .success()
+        {
+            return Err(anyhow!("Failed to tar executable file"));
+        }
+        Some(BASE64_STANDARD.encode(fs::read(tmp_out_dir.path().join("executable.tar.gz"))?))
     } else {
-        Option::None
+        None
     };
 
     let response = CompileResponse {
-        executable,
+        executable: base64_files.map(|files| Executable {
+            files,
+            run_command,
+        }),
         compile_output,
     };
 

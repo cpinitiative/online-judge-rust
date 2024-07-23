@@ -1,18 +1,19 @@
 use std::{
-    fs::{self, File, Permissions},
+    fs::{self, File},
     io::Write,
-    os::unix::fs::PermissionsExt, path::Path,
+    path::Path,
+    process::Command,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use axum::Json;
 use serde::{Deserialize, Serialize};
-use tempdir::TempDir;
+use tempfile::{tempdir, NamedTempFile};
 
 use crate::{
     error::AppError,
     run_command::{run_command, CommandOptions},
-    types::{Executable, Language},
+    types::{Executable},
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
 
@@ -28,7 +29,7 @@ pub struct ExecuteOptions {
     pub timeout_ms: u32,
 
     /// Alphanumeric string if you want file I/O to be supported, such as "cowdating".
-    /// 
+    ///
     /// Will create the files `file_io_name`.in and read `file_io_name`.out.
     pub file_io_name: Option<String>,
 }
@@ -64,60 +65,44 @@ pub struct ExecuteResponse {
     pub verdict: Verdict,
 }
 
+fn extract_zip(dir: &Path, base64_zip: &str) -> Result<()> {
+    let mut tmp_file = NamedTempFile::new()?;
+    tmp_file.write_all(&BASE64_STANDARD.decode(base64_zip)?)?;
+    if !Command::new("tar")
+        .arg("xf")
+        .arg(tmp_file.path().to_str().unwrap())
+        .arg("-C")
+        .arg(dir.to_str().unwrap())
+        .status()?
+        .success()
+    {
+        Err(anyhow!("Failed to extract base64 .tar.gz file"))
+    } else {
+        Ok(())
+    }
+}
+
 pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
-    let tmp_dir = TempDir::new("execute")?;
+    let tmp_dir = tempdir()?;
+
+    extract_zip(tmp_dir.path(), &payload.executable.files)?;
 
     if let Some(ref name) = payload.options.file_io_name {
         if !name.chars().all(|c| c.is_ascii_alphanumeric()) {
-            return Err(anyhow!("Invalid file I/O name. It must be alphanumeric, like \"cowdating\"."))
+            return Err(anyhow!(
+                "Invalid file I/O name. It must be alphanumeric, like \"cowdating\"."
+            ));
         }
         let mut stdin_file = File::create(tmp_dir.path().join(name).with_extension("in"))?;
         stdin_file.write_all(payload.options.stdin.as_ref())?;
     }
 
-    let command_options = CommandOptions { stdin: payload.options.stdin, timeout_ms: payload.options.timeout_ms };
+    let command_options = CommandOptions {
+        stdin: payload.options.stdin,
+        timeout_ms: payload.options.timeout_ms,
+    };
 
-    let command_output = match payload.executable {
-        Executable::Binary { value } => {
-            let mut executable_file = File::create(tmp_dir.path().join("program"))?;
-            executable_file.write_all(BASE64_STANDARD.decode(value)?.as_ref())?;
-            executable_file.set_permissions(Permissions::from_mode(0o755))?;
-            drop(executable_file);
-
-            run_command("./program", tmp_dir.path(), command_options)
-        }
-        Executable::JavaClass { class_name, value } => {
-            let mut class_file = File::create(
-                tmp_dir
-                    .path()
-                    .join(class_name.clone())
-                    .with_extension("class"),
-            )?;
-            class_file.write_all(BASE64_STANDARD.decode(value)?.as_ref())?;
-            drop(class_file);
-
-            run_command(
-                format!("java {}", class_name).as_ref(),
-                tmp_dir.path(),
-                command_options,
-            )
-        }
-        Executable::Script {
-            language,
-            source_code,
-        } => {
-            if language != Language::Py12 {
-                return Err(anyhow!("Unknown script language {:#?}", language));
-            }
-
-            let mut executable_file = File::create(tmp_dir.path().join("program.py"))?;
-            executable_file.write_all(BASE64_STANDARD.decode(source_code)?.as_ref())?;
-            executable_file.set_permissions(Permissions::from_mode(0o755))?;
-            drop(executable_file);
-
-            run_command("python3.12 program.py", tmp_dir.path(), command_options)
-        }
-    }?;
+    let command_output = run_command(&payload.executable.run_command, tmp_dir.path(), command_options)?;
 
     let verdict = match command_output.exit_code {
         124 => Verdict::TimeLimitExceeded,

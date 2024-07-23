@@ -80,3 +80,22 @@ double x; cin >> x; int y = x; for (int i = 0; i < y; i++) x += sqrt(x); cout <<
 ```
 
 Should benchmark this to determine how off the timings are / whether we can just add a multiplicative factor to it.
+
+---
+
+misc todos
+
+```
+// timeout: warning: disabling core dumps failed: Operation not permitted
+// Command exited with non-zero status 137
+// UGH
+
+// also, internal server error when output too large
+
+// want smth like
+/*
+Line 15: Char 8: runtime error: signed integer overflow: 2147483647 + 2147483647 cannot be represented in type 'int' (solution.cpp)
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior solution.cpp:15:8
+*/
+// which is what leetcode gives you
+```

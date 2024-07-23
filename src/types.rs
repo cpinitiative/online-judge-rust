@@ -10,18 +10,15 @@ pub enum Language {
     Py12,
 }
 
+// for the future, when implementing grader / scorer support, we probably want to add an "additional_files" field to executable.
+// grader: https://probgate.org/viewsolution.php?grader_id=557
+// needs 3 files, input, output, answer
+// scorer: https://probgate.org/viewsolution.php?scorer_id=4
+// needs N files, one for each test case
+
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum Executable {
-    #[serde(rename = "binary")]
-    Binary { value: String },
-
-    #[serde(rename = "java_class")]
-    JavaClass { class_name: String, value: String },
-
-    #[serde(rename = "script")]
-    Script {
-        language: Language,
-        source_code: String,
-    },
+pub struct Executable {
+    /// base64 .tar.gz file
+    pub files: String,
+    pub run_command: String,
 }
