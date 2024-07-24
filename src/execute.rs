@@ -1,5 +1,10 @@
 use std::{
-    cmp::min, fs::{self, File}, io::Write, os::unix::fs::PermissionsExt, path::Path, process::Command
+    cmp::{max, min},
+    fs::{self, File},
+    io::Write,
+    os::unix::fs::PermissionsExt,
+    path::Path,
+    process::Command,
 };
 
 use anyhow::{anyhow, Result};
@@ -80,41 +85,39 @@ fn extract_zip(dir: &Path, base64_zip: &str) -> Result<()> {
     }
 }
 
+fn truncate_if_needed(mut str: String, max_len: usize) -> String {
+    if str.len() > max_len {
+        // Note: This could panic if truncating multi-byte characters!
+        str.truncate(max_len);
+        str += "\n[Truncated]";
+    }
+    str
+}
+
 fn truncate_response(mut response: ExecuteResponse) -> ExecuteResponse {
-    const MAX_LEN: usize = 5_800_000;
+    let mut remaining_len: usize = 5_800_000;
 
-    let mut stdout = response.stdout;
-    let mut stderr = response.stderr;
-    let mut file_output = response.file_output;
+    response.file_output = response.file_output.map(|str| {
+        truncate_if_needed(
+            str,
+            max(
+                remaining_len / 3,
+                remaining_len - min(response.stdout.len() + response.stderr.len(), remaining_len),
+            ),
+        )
+    });
+    remaining_len -= response.file_output.as_ref().map(|x| x.len()).unwrap_or(0);
 
-    let mut file_output_len = 0;
+    response.stderr = truncate_if_needed(
+        response.stderr,
+        max(
+            remaining_len / 2,
+            remaining_len - min(response.stdout.len(), remaining_len),
+        ),
+    );
+    remaining_len -= response.stderr.len();
 
-    if file_output.is_some() {
-        let mut actual_file_output = file_output.unwrap();
-        file_output_len = min(MAX_LEN / 3, actual_file_output.len());
-        actual_file_output.truncate(file_output_len);
-        actual_file_output += "\n[Truncated]";
-        file_output = Some(actual_file_output);
-    }
-
-    let stderr_len = min((MAX_LEN - file_output_len) / 2, stderr.len());
-    let stdout_len = min(MAX_LEN - stderr_len - file_output_len, stdout.len());
-
-    if stderr.len() > stderr_len {
-        // Note: This could panic if printing multi-byte characters!
-        stderr.truncate(stderr_len);
-        stderr += "\n[Truncated]";
-    }
-
-    if stdout.len() > stdout_len {
-        // Note: This could panic if printing multi-byte characters!
-        stdout.truncate(stdout_len);
-        stdout += "\n[Truncated]";
-    }
-
-    response.stdout = stdout;
-    response.stderr = stderr;
-    response.file_output = file_output;
+    response.stdout = truncate_if_needed(response.stdout, remaining_len);
 
     response
 }
@@ -149,11 +152,7 @@ pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
     run_file.set_permissions(run_file_permissions)?;
     drop(run_file);
 
-    let command_output = run_command(
-        "./run",
-        tmp_dir.path(),
-        command_options,
-    )?;
+    let command_output = run_command("./run", tmp_dir.path(), command_options)?;
 
     let verdict = match command_output.exit_code {
         124 => Verdict::TimeLimitExceeded,
