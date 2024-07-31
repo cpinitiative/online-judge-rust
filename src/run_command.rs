@@ -116,7 +116,7 @@ pub fn run_command(
 
     let process = process.wait_with_output()?;
 
-    let timing_output = parse_timing_stderr(str::from_utf8(&process.stderr)?)?;
+    let timing_output = parse_timing_stderr(String::from_utf8_lossy(&process.stderr).as_ref())?;
 
     Ok(CommandOutput {
         exit_code: process.status.into_raw(),
@@ -125,7 +125,7 @@ pub fn run_command(
                 signal.to_string()
             })
         }),
-        stdout: str::from_utf8(&process.stdout)?.to_string(),
+        stdout: String::from_utf8_lossy(&process.stdout).into_owned(),
         stderr: timing_output.stderr,
         wall_time: timing_output.wall_time,
         memory_usage: timing_output.memory_usage,

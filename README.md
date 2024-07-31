@@ -96,3 +96,19 @@ SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior solution.cpp:15:8
 */
 // which is what leetcode gives you
 ```
+
+Better logging: https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
+
+utf8 encoding regression test:
+
+```
+// Source: https://usaco.guide/general/io
+
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+	char c = 128;
+	cout << c << endl;
+}
+```
