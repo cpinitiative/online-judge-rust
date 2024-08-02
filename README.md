@@ -1,4 +1,27 @@
-To run normally:
+# Serverless Online Judge (Rust)
+
+From the Competitive Programming Initiative. A successor to https://github.com/cpinitiative/online-judge.
+
+## Goal
+
+To create a low-cost, reliable, and fast online judge that:
+
+- Supports C++, Java, Python, and possibly other languages
+- Can be used to run code against many test cases in parallel
+- Can be extended to support graders, scorers, and interactive problems
+
+Notably, the following are not goals of this project:
+
+- *Is not necessarily consistent*. This is because AWS Lambda can run on different CPU architectures. Since USACO problems generally aren't too sensitive to time constraints, we are OK with this.
+- *Is not necessarily secure*. Malicious code will not harm other AWS resources, but could theoretically return falsified results.
+
+This online judge is meant to be used with the USACO Guide IDE or USACO Guide Groups, so the experience is optimized to make honest users happy most of the time rather than catch malicious users (i.e. we would rather grade problems faster even if that means malicious users can access expected output).
+
+## Development
+
+Install Rust, Cargo, and project depenencies.
+
+### Running in development
 
 ```
 cargo lambda watch
@@ -6,13 +29,20 @@ cargo lambda watch
 
 And POST `http://localhost:9000/compile-and-execute`.
 
-To test base docker image (useful for determining what packages need to be installed)
+### Deploying
+
+Continuous deployment is set up with Github Actions; all you need to do is push to main.
+
+### Miscellaneous Commands
+
+
+To test base docker image (useful for determining what packages need to be installed):
 
 ```
 docker run --rm -it --platform linux/amd64 --entrypoint /bin/bash public.ecr.aws/lambda/python:3.12
 ```
 
-To build and test dockerfile locally
+To build and test dockerfile locally:
 
 ```
 cargo lambda build
@@ -28,7 +58,7 @@ curl "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{}'
 # to get format for ^: https://github.com/brefphp/local-api-gateway/blob/main/src/apiGateway.ts
 ```
 
-To upload to ECR
+To upload to ECR:
 
 ```
 # Login to AWS ECR
@@ -47,14 +77,9 @@ To deploy lambda for the first time:
 - Set timeout to 30 seconds
 - Set memory to 1769 MB (1 vCPU)
 
+### Todo
 
----
-
-file stuff: relaxed permissions
-
----
-
-Todo: Note that there are actually two CPUs -- AMD and Intel -- so timings are not consistent. With this, I saw 1.93 and also 1.30:
+Note that there are actually two CPUs -- AMD and Intel -- so timings are not consistent. With this, I saw 1.93 and also 1.30:
 
 ```
 double x; cin >> x; int y = x; for (int i = 0; i < y; i++) x += sqrt(x); cout << x << endl;
@@ -83,32 +108,27 @@ double x; cin >> x; int y = x; for (int i = 0; i < y; i++) x += sqrt(x); cout <<
 
 Should benchmark this to determine how off the timings are / whether we can just add a multiplicative factor to it.
 
----
 
-misc todos
+We can also get improved error messages. This is an example of what Leetcode tells you:
+
 
 ```
-
-// want smth like
 /*
 Line 15: Char 8: runtime error: signed integer overflow: 2147483647 + 2147483647 cannot be represented in type 'int' (solution.cpp)
 SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior solution.cpp:15:8
 */
-// which is what leetcode gives you
 ```
 
-Better logging: https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
+We should have better logging: https://docs.aws.amazon.com/lambda/latest/dg/rust-logging.html
 
-utf8 encoding regression test:
+We should add tests. Here's an utf8 encoding regression test:
 
 ```
-// Source: https://usaco.guide/general/io
-
-#include <bits/stdc++.h>
+#include <iostream>
 using namespace std;
 
 int main() {
 	char c = 128;
-	cout << c << endl;
+	cout << c << endl; // this shouldn't crash the lambda funciton
 }
 ```
