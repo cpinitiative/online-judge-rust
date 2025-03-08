@@ -1,11 +1,11 @@
-use axum::Json;
+use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     compile::{compile, CompileRequest},
     error::AppError,
     execute::{execute, ExecuteOptions, ExecuteRequest, ExecuteResponse},
-    run_command::CommandOutput,
+    run_command::CommandOutput, AppState,
 };
 
 /// Payload for POST /compile-and-execute
@@ -27,6 +27,7 @@ pub struct CompileAndExecuteResponse {
 }
 
 pub async fn compile_and_execute_handler(
+    State(state): State<AppState>,
     Json(payload): Json<CompileAndExecuteRequest>,
 ) -> Result<Json<CompileAndExecuteResponse>, AppError> {
     let compile_output = compile(payload.compile)?;
@@ -34,7 +35,7 @@ pub async fn compile_and_execute_handler(
         Some(execute(ExecuteRequest {
             executable,
             options: payload.execute,
-        })?)
+        }, state.s3_client).await?)
     } else {
         None
     };

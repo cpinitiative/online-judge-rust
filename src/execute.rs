@@ -8,14 +8,18 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use axum::Json;
+use aws_sdk_s3::{presigning::PresigningConfig, primitives::ByteStream};
+use axum::{extract::State, Json};
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use tempfile::{tempdir, NamedTempFile};
+use uuid::Uuid;
 
 use crate::{
     error::AppError,
     run_command::{run_command, CommandOptions},
     types::Executable,
+    AppState,
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
 
@@ -49,7 +53,13 @@ pub enum Verdict {
     RuntimeError,
 }
 
-#[derive(Serialize)]
+impl Default for Verdict {
+    fn default() -> Self {
+        Self::Accepted
+    }
+}
+
+#[derive(Serialize, Default)]
 pub struct ExecuteResponse {
     pub stdout: String,
 
@@ -65,6 +75,10 @@ pub struct ExecuteResponse {
     pub exit_signal: Option<String>,
 
     pub verdict: Verdict,
+
+    /// If the output is too large, this will be Some(output_url).
+    /// The output URL is a presigned S3 URL that contians the full output.
+    pub full_output_url: Option<String>,
 }
 
 fn extract_zip(dir: &Path, base64_zip: &str) -> Result<()> {
@@ -94,7 +108,7 @@ fn truncate_if_needed(mut str: String, max_len: usize) -> String {
 }
 
 fn truncate_response(mut response: ExecuteResponse) -> ExecuteResponse {
-    let mut remaining_len: usize = 5_800_000;
+    let mut remaining_len: usize = 5_000_000;
 
     response.file_output = response.file_output.map(|str| {
         truncate_if_needed(
@@ -121,7 +135,10 @@ fn truncate_response(mut response: ExecuteResponse) -> ExecuteResponse {
     response
 }
 
-pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
+pub async fn execute(
+    payload: ExecuteRequest,
+    s3_client: aws_sdk_s3::Client,
+) -> Result<ExecuteResponse> {
     let tmp_dir = tempdir()?;
 
     extract_zip(tmp_dir.path(), &payload.executable.files)?;
@@ -172,7 +189,7 @@ pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
         None
     };
 
-    Ok(truncate_response(ExecuteResponse {
+    let mut response = ExecuteResponse {
         stdout: command_output.stdout,
         file_output,
         stderr: command_output.stderr,
@@ -181,11 +198,40 @@ pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
         exit_code: command_output.exit_code,
         exit_signal: command_output.exit_signal,
         verdict,
-    }))
+        full_output_url: None,
+    };
+
+    let json_str = serde_json::to_string(&response)?;
+    if json_str.len() > 5_500_000 {
+        let id = Uuid::new_v4();
+        s3_client
+            .put_object()
+            .bucket("online-judge-rust-data")
+            .key(format!("outputs/{id}.json"))
+            .body(ByteStream::from(Bytes::from(json_str)))
+            .content_type("application/json")
+            .send()
+            .await?;
+
+        let presigned_url = s3_client
+            .get_object()
+            .bucket("online-judge-rust-data")
+            .key(format!("outputs/{id}.json"))
+            .presigned(PresigningConfig::expires_in(
+                std::time::Duration::from_secs(60 * 60 * 24),
+            )?)
+            .await?;
+
+        response.full_output_url = Some(presigned_url.uri().to_string());
+        return Ok(truncate_response(response));
+    }
+
+    Ok(response)
 }
 
 pub async fn execute_handler(
+    State(state): State<AppState>,
     Json(payload): Json<ExecuteRequest>,
 ) -> Result<Json<ExecuteResponse>, AppError> {
-    Ok(Json(execute(payload)?))
+    Ok(Json(execute(payload, state.s3_client).await?))
 }
