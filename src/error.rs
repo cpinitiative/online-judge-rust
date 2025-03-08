@@ -2,6 +2,7 @@
 //! Taken from https://github.com/tokio-rs/axum/blob/main/examples/anyhow-error-response/src/main.rs
 
 use axum::{http::StatusCode, response::{IntoResponse, Response}};
+use lambda_http::tracing::error;
 
 // Make our own error that wraps `anyhow::Error`.
 pub struct AppError(anyhow::Error);
@@ -9,10 +10,10 @@ pub struct AppError(anyhow::Error);
 // Tell axum how to convert `AppError` into a response.
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        println!("Returning Internal Server Error: {}", self.0);
+        error!("Returning Internal Server Error: {:?}", self.0);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Internal Server Error: {}", self.0),
+            format!("Internal Server Error: {:?}", self.0),
         )
             .into_response()
     }

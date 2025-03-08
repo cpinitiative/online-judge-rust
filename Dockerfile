@@ -10,5 +10,7 @@ RUN dnf install -y time tar
 
 COPY target/lambda/online-judge-rust/bootstrap ${LAMBDA_RUNTIME_DIR}/bootstrap
 
+ENV RUST_BACKTRACE=1
+
 # This is passed in as argv[1] to /var/runtime/bootstrap. The value shouldn't matter.
 CMD [ "_handler" ]
