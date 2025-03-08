@@ -1618,6 +1618,7 @@ dependencies = [
  "shell-words",
  "tempfile",
  "tokio",
+ "tracing",
  "uuid",
 ]
 

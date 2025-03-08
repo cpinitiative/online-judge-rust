@@ -20,5 +20,6 @@ shell-words = "1.1.0"
 tempfile = "3.18.0"
 
 tokio = { version = "1", features = ["macros"] }
+tracing = "0.1.41"
 uuid = { version = "1.15.1", features = ["v4"] }
 
