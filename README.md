@@ -19,15 +19,15 @@ This online judge is meant to be used with the USACO Guide IDE or USACO Guide Gr
 
 ## Development
 
-Install Rust, Cargo, and project depenencies.
+Install Rust, Cargo, and project depenencies (notably [`cargo-lambda`](https://github.com/cargo-lambda/cargo-lambda)).
 
 ### Running in development
 
 ```
-cargo lambda watch
+cargo lambda watch -P 9001
 ``` 
 
-And POST `http://localhost:9000/compile-and-execute`.
+And POST `http://localhost:9001/compile-and-execute`.
 
 ### Deploying
 

@@ -109,9 +109,8 @@ pub fn run_command(
     std::thread::spawn(move || {
         // Note: This may be due to a broken pipe if the program closes their stdin pipe.
         // This thread panicing does not crash the main thread.
-        stdin_pipe
-            .write_all(options.stdin.as_bytes())
-            .expect("Failed to write to stdin");
+        let _ = stdin_pipe
+            .write_all(options.stdin.as_bytes());
     });
 
     let process = process.wait_with_output()?;
