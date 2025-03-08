@@ -154,7 +154,9 @@ pub fn execute(payload: ExecuteRequest) -> Result<ExecuteResponse> {
     let command_output = run_command("./run", tmp_dir.path(), command_options)?;
 
     let verdict = match command_output.exit_code {
-        124 => Verdict::TimeLimitExceeded,
+        // timeout exits with status 124. command_output.exit_code is a wait status.
+        // exit status 124 corresponds to wait status (124 << 8).
+        31744 => Verdict::TimeLimitExceeded,
         0 => Verdict::Accepted,
         _ => Verdict::RuntimeError,
     };
