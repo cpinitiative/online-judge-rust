@@ -1,7 +1,7 @@
 use std::{
     fs::{self, File},
-    io::{Write},
-    os::unix::{process::ExitStatusExt},
+    io::Write,
+    os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -9,6 +9,7 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use axum::Json;
 use base64::{prelude::BASE64_STANDARD, Engine};
+use bytes::Bytes;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tempfile::tempdir;
@@ -152,7 +153,7 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
         &command,
         tmp_dir.path(),
         CommandOptions {
-            stdin: String::new(),
+            stdin: Bytes::new(),
             timeout_ms: 20000,
         },
     )?;
@@ -182,10 +183,7 @@ pub fn compile(compile_request: CompileRequest) -> Result<CompileResponse> {
     };
 
     let response = CompileResponse {
-        executable: base64_files.map(|files| Executable {
-            files,
-            run_command,
-        }),
+        executable: base64_files.map(|files| Executable { files, run_command }),
         compile_output,
     };
 

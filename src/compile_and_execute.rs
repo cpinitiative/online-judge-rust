@@ -5,7 +5,8 @@ use crate::{
     compile::{compile, CompileRequest},
     error::AppError,
     execute::{execute, ExecuteOptions, ExecuteRequest, ExecuteResponse},
-    run_command::CommandOutput, AppState,
+    run_command::CommandOutput,
+    AppState,
 };
 
 /// Payload for POST /compile-and-execute
@@ -32,10 +33,16 @@ pub async fn compile_and_execute_handler(
 ) -> Result<Json<CompileAndExecuteResponse>, AppError> {
     let compile_output = compile(payload.compile)?;
     let execute_output = if let Some(executable) = compile_output.executable {
-        Some(execute(ExecuteRequest {
-            executable,
-            options: payload.execute,
-        }, state.s3_client).await?)
+        Some(
+            execute(
+                ExecuteRequest {
+                    executable,
+                    options: payload.execute,
+                },
+                state.s3_client,
+            )
+            .await?,
+        )
     } else {
         None
     };

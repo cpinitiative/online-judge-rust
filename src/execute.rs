@@ -7,16 +7,16 @@ use std::{
     process::Command,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use aws_sdk_s3::{presigning::PresigningConfig, primitives::ByteStream};
-use axum::{extract::State, Json};
+use axum::{extract::State, http::StatusCode, Json};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use tempfile::{tempdir, NamedTempFile};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
+    error::{AppError, HTTPError},
     run_command::{run_command, CommandOptions},
     types::Executable,
     AppState,
@@ -31,7 +31,8 @@ pub struct ExecuteRequest {
 
 #[derive(Deserialize)]
 pub struct ExecuteOptions {
-    pub stdin: String,
+    pub stdin: Option<String>,
+    pub stdin_id: Option<String>,
     pub timeout_ms: u32,
 
     /// Alphanumeric string if you want file I/O to be supported, such as "cowdating".
@@ -143,6 +144,26 @@ pub async fn execute(
 
     extract_zip(tmp_dir.path(), &payload.executable.files)?;
 
+    let stdin = if let Some(stdin_id) = payload.options.stdin_id {
+        if Uuid::parse_str(&stdin_id).is_err() {
+            return Err(HTTPError(StatusCode::BAD_REQUEST, "Invalid stdin_id".to_string()).into());
+        }
+
+        let object = s3_client
+            .get_object()
+            .bucket("online-judge-rust-data")
+            .key(format!("inputs/{stdin_id}.txt"))
+            .send()
+            .await?;
+
+        object.body.collect().await.map(|data| data.into_bytes())?
+    } else {
+        Bytes::from(payload.options.stdin.ok_or(HTTPError(
+            StatusCode::BAD_REQUEST,
+            "Either stdin or stdin_id must be provided".to_string(),
+        ))?)
+    };
+
     if let Some(ref name) = payload.options.file_io_name {
         if !name.chars().all(|c| c.is_ascii_alphanumeric()) {
             return Err(anyhow!(
@@ -150,11 +171,11 @@ pub async fn execute(
             ));
         }
         let mut stdin_file = File::create(tmp_dir.path().join(name).with_extension("in"))?;
-        stdin_file.write_all(payload.options.stdin.as_ref())?;
+        stdin_file.write_all(&stdin)?;
     }
 
     let command_options = CommandOptions {
-        stdin: payload.options.stdin,
+        stdin,
         timeout_ms: payload.options.timeout_ms,
     };
 

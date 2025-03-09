@@ -7,13 +7,14 @@ use std::{os::unix::process::ExitStatusExt, process::Command, str};
 
 use anyhow::Result;
 use anyhow::{anyhow, Context};
+use bytes::Bytes;
 use nix::sys::signal::Signal;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct CommandOptions {
-    pub stdin: String,
+    pub stdin: Bytes,
     pub timeout_ms: u32,
 }
 
@@ -109,8 +110,7 @@ pub fn run_command(
     std::thread::spawn(move || {
         // Note: This may be due to a broken pipe if the program closes their stdin pipe.
         // This thread panicing does not crash the main thread.
-        let _ = stdin_pipe
-            .write_all(options.stdin.as_bytes());
+        let _ = stdin_pipe.write_all(&options.stdin);
     });
 
     let process = process.wait_with_output()?;
